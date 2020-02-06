@@ -1,0 +1,65 @@
+# XBMC Media Center language file
+# Addon Name: Multi-Room Sync
+# Addon id: service.multiroomsync
+# Addon Provider: dmjmccarthy
+msgid ""
+msgstr ""
+"Project-Id-Version: XBMC Addons\n"
+"Report-Msgid-Bugs-To:  \n"
+"POT-Creation-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: XBMC Translation Team\n"
+"Language-Team: English"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgctxt "#32001"
+msgid "Enable Debugging"
+msgstr ""
+
+msgctxt "#32002"
+msgid "Check every x secs"
+msgstr ""
+
+msgctxt "#32003"
+msgid "Playback Offset (milliseconds)"
+msgstr ""
+
+msgctxt "#32004"
+msgid "Enter IP:Port"
+msgstr ""
+
+msgctxt "#32005"
+msgid "Enter Username:Password"
+msgstr ""
+
+msgctxt "#32006"
+msgid "Enable Client"
+msgstr ""
+
+msgctxt "#32007"
+msgid "Calculated Network Latency (milliseconds)"
+msgstr ""
+
+msgctxt "#32008"
+msgid "Adjust client offsets automatically"
+msgstr ""
+
+msgctxt "#32009"
+msgid "Maximum client drift (ms)"
+msgstr ""
+
+msgctxt "#32010"
+msgid "Host common folder"
+msgstr ""
+
+msgctxt "#32011"
+msgid "Common folder"
+msgstr ""
+
+msgctxt "#32012"
+msgid "Resync after x out-of-sync checks"
+msgstr ""
