@@ -1,5 +1,5 @@
 # This file is part of Multi-Room Sync, a Kodi Add on
-# Copyright (C) 2020  dmjmccarthy
+# Copyright (C) 2021  dmjmccarthy
 # A fork of MediaMirror by Lunatixz (C) 2017 <https://github.com/Lunatixz/KODI_Addons/>
 
 # This program is free software: you can redistribute it and/or modify
@@ -29,6 +29,19 @@ DEBUG = REAL_SETTINGS.getSetting('enableDebug') == "true"
 POLL = int(REAL_SETTINGS.getSetting('pollTIME'))
 maximumDrift = int(REAL_SETTINGS.getSetting('maximumDrift'))
 hostCommonPath = REAL_SETTINGS.getSetting('host_CommonPath')
+maxNetworkLatency = datetime.timedelta(milliseconds=
+    int(REAL_SETTINGS.getSetting('maxNetworkLatency')))
+networkLatencyHistoryCount = 20
+adjustForNetworkLatency = False
+seekOrDriftLimit = datetime.timedelta(milliseconds=3000) #milliseconds
+playbackStatusMessages = {
+    0 : "Cannot communicate with client",
+    1 : "The client is not playing the correct media",
+    2 : "Client playback position is outside threshold - make seek correction",
+    3 : "client playback position is outside threshold - make drift correction",
+    4 : "client playback position is outside threshold - not yet making correction",
+    5 : "Client playback position is good" 
+}
 socket.setdefaulttimeout(30)
 
 def log(msg, level = xbmc.LOGDEBUG):
@@ -57,6 +70,13 @@ def floor(x):
     x-= x%1
     return x
 
+def mean(x):
+    sumseconds = 0
+    for delta in x:
+        sumseconds += delta.total_seconds()
+    mean = sumseconds / len(x) 
+    return datetime.timedelta(seconds=mean)
+
 def splitTimedeltaToUnits(seekTime):
     seek = str(seekTime)
     log('splitTimedeltaToUnits, seek = ' + seek)
@@ -78,6 +98,12 @@ def splitTimedeltaToUnits(seekTime):
         milliseconds = 0
     return hours, minutes, seconds, milliseconds 
 
+def driftHistoryToString(driftHistory):
+    historyString = ""
+    for epoch in driftHistory:
+        historyString += ", " + str(epoch.total_seconds())
+    return historyString
+
 def sendLocal(command):
     data = ''
     try:
@@ -87,11 +113,11 @@ def sendLocal(command):
     return uni(data)
     
 def dumpJson(mydict, sortkey=True):
-    log("dumpJson")
+    #log("dumpJson")
     return json.dumps(mydict, sort_keys=sortkey)
     
 def loadJson(string):
-    log("loadJson: len = " + str(len(string)))
+    #log("loadJson: len = " + str(len(string)))
     if len(string) == 0:
         return {}
     try:
@@ -112,10 +138,14 @@ def SendRemote(IPP, AUTH, CNUM, params, IPPprops):
                           headers=headers,
                           auth=(username,password))
         log('SendRemote: response = ' + str(response.status_code) + ' ' + json.dumps(response.json()))
-        xbmc.sleep(10) #arbitrary sleep to avoid network flood, add to latency value.
+        #xbmc.sleep(10) #arbitrary sleep to avoid network flood, add to latency value.
         time_after = time.time() 
         time_taken = time_after-time_before
-        IPPprops["networkLatency"] = datetime.timedelta(seconds=round(time_taken,2))
+        latency = datetime.timedelta(seconds=round(time_taken,2))
+        IPPprops["networkLatency"] = latency
+        IPPprops["networkLatencyHistory"].append(latency)
+        if len(IPPprops["networkLatencyHistory"]) > networkLatencyHistoryCount:
+            IPPprops["networkLatencyHistory"].pop(0)
         return response.json()
     except Exception as e:
         log('SendRemote: exception ' + str(e.message))
@@ -132,14 +162,78 @@ def getActivePlayer():
                 return id
     return 1
 
-
 def clearSyncHistory(IPPlst):
     log('clearSyncHistory')
     for IPP in IPPlst:
-        IPP[4]['syncEpochsCount'] = 0
+        IPP[4]['syncIntervalsCount'] = 0
         IPP[4]['driftHistory'] = []
         IPP[4]['initialSyncAchieved'] = 0
-        IPP[4]['LostSyncEpochsCount'] = 0
+        IPP[4]['LostSyncIntervalsCount'] = 0
+
+def decidePlaybackStatus(IPP):
+    log('decidePlaybackStatus')
+    #Playback status logic
+    diff_playtime = IPP[4]['lastDrift']
+
+    log('decidePlaybackStatus: maximumDrift = ' + str(IPP[4]['maximumDrift']) + 's')
+    log('decidePlaybackStatus: diff_playtime = ' + str(diff_playtime.total_seconds()) + 's')
+
+    if abs(diff_playtime.total_seconds()) <= IPP[4]['maximumDrift']:
+        playbackStatus = 5
+        IPP[4]['syncIntervalsCount'] += 1
+        IPP[4]['LostSyncIntervalsCount'] = 0
+    elif abs(diff_playtime) <= seekOrDriftLimit:
+        if IPP[4]['LostSyncIntervalsCount'] < (IPP[4]['maxLostSyncIntervalsCount']-1):
+            #log('decidePlaybackStatus: diff_playtime =' + str(diff_playtime.total_seconds()) +'s, seekOrDriftLimit =' + str(seekOrDriftLimit))
+            playbackStatus = 4
+            IPP[4]['LostSyncIntervalsCount'] += 1
+        else:
+            playbackStatus = 3
+    else:
+        playbackStatus = 2
+
+    # Playback status messages
+    if playbackStatus == 5:
+        log("chkClients: Sync: IPP=" + IPP[0] + " OK for " + 
+            str(IPP[4]['syncIntervalsCount']+1))
+    elif playbackStatus == 3:
+        log("chkClients: Sync: IPP=" + IPP[0] + " Not in sync")
+    elif playbackStatus == 2:
+        log("chkClients: Sync: IPP=" + IPP[0] + " Limit exceeded, history = " + 
+            driftHistoryToString(IPP[4]['driftHistory']))
+    #log('decidePlaybackStatus playbackStatus = ' + str(playbackStatus))
+    IPP[4]['playbackStatus'] = playbackStatus
+    return IPP
+
+    # Actions
+    #driftLst = []
+    #seekLst = []
+    # if playbackStatus == 5:
+    #     return IPP
+    # if playbackStatus == 4:
+    #     return IPP
+    # if playbackStatus == 3:
+    #     return IPP
+    #     #driftLst.append(IPP)
+    # if playbackStatus == 2:
+    #         # if IPP[4]['LostSyncIntervalsCount'] == IPP[4]['maxLostSyncIntervalsCount']:
+    #         #     #first chance
+    #         #     log("chkClients: First chance to use last good offset")
+    #         #     seekLst.append(IPP) 
+    #         #     continue
+    #     #seekLst.append(IPP)
+    #     return IPP
+    # if playbackStatus == 1:
+    #     return IPP
+
+        # we'll re sync
+        # IPPlst = []
+        # IPPlst.append(IPP)
+        # clearSyncHistory(IPPlst)
+
+        # #IPPlst[4]['offset'] += 
+        # # seekLst.append(IPPlst)
+        # #IPPlst[4]['syncIntervalsCount'] = 0
 
   
 class Player(xbmc.Player):
@@ -199,17 +293,15 @@ class Player(xbmc.Player):
         except:
             return ''
             
-            
     def getPlayerTime(self):
         log('getPlayerTime')
         try:
             return self.getTime()
         except:
             return 0
-             
-             
+              
     def getPlayerLabel(self):
-        log('getPlayerLabel')
+        #log('getPlayerLabel')
 
         #find current activeplayer
         try:
@@ -223,7 +315,6 @@ class Player(xbmc.Player):
 
         return json_response['result']['item']['label']
 
-            
     def getPlayerItem(self):
         json_query = ('{"jsonrpc":"2.0","method":"Player.GetItem","params":{"playerid":%d,"properties":["file","title","thumbnail","showtitle"]},"id":1}'%getActivePlayer())
         json_response = loadJson(sendLocal(json_query))
@@ -241,7 +332,6 @@ class Player(xbmc.Player):
             return type, label, file, thumb
         return 'video', self.getPlayerLabel(), self.getPlayerFile(), ICON
 
-        
     def getClientPVRid(self, IPP, label, id):
         log('getClientPVRid')      
         idLST = []
@@ -263,10 +353,9 @@ class Player(xbmc.Player):
             SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
         return True
 
-            
     def playClient(self, IPPlst):
         #log('playClient')
-        log('playClient : no in list = ' + str(len(IPPlst))) 
+        #log('playClient : no in list = ' + str(len(IPPlst))) 
         #xbmc.executebuiltin("Notification('Media Mirror','playClient " + str(len(IPPlst)) + " devices')")
         if hasattr(self, 'playLabel'):
             label = self.playLabel
@@ -275,11 +364,10 @@ class Player(xbmc.Player):
             thumb = self.playThumb
         else: thumb = None
         #print(self.playType, self.playLabel, self.playFile, self.playThumb)
-        localPlayFile = "/storage/emulated/0/Download/BigBuckBunny.mp4"
         localPlayFile = self.getPlayerFile()
         for IPP in IPPlst:
+            playFile = localPlayFile
             if hostCommonPath <> "" and IPP[4]["commonPath"] <> "":
-                playFile = localPlayFile
                 log("playClient, hostCommonPath = " + hostCommonPath + " commonPath = " + IPP[4]["commonPath"])
                 playFile = playFile.replace(hostCommonPath, IPP[4]["commonPath"])
                 if "/" in IPP[4]["commonPath"]: # Unix client
@@ -291,6 +379,7 @@ class Player(xbmc.Player):
             elif self.getPlayerTime() > 0:
                 seekTime = datetime.timedelta(seconds=self.getPlayerTime())
                 seekTime += IPP[4]["offset"] #add user offset
+                #todo netlatency
                 
                 hours, minutes, seconds, milliseconds = splitTimedeltaToUnits(seekTime)
 
@@ -307,18 +396,58 @@ class Player(xbmc.Player):
         return True
     
     def seekClient(self, IPPlst):
-        log('seekClient')
-        #xbmc.executebuiltin("Notification('Media Mirror','seekClient " + str(len(IPPlst)) + " devices')")
+        #log('seekClient')
+        log('seekClient ' + str(len(IPPlst)) + ' in list')
+        xbmc.executebuiltin("Notification('Multi-Room Sync,'seekClient")
         for IPP in IPPlst:
             seekTime = datetime.timedelta(seconds=self.getPlayerTime())
             seekTime += IPP[4]["offset"] #add user offset
+            if adjustForNetworkLatency:
+                seekTime -= (mean(IPP[4]["networkLatencyHistory"])/2)
+
             hours, minutes, seconds, milliseconds = splitTimedeltaToUnits(seekTime)
+
+            if ( hours + minutes + seconds == 0) and (miliseconds <= seekOrDriftLimit):
+                tweakclient(self)
+                continue
 
             seek = str(seekTime)
             log('seekClient, seek = ' + str(seekTime) + ' offset = ' + 
                 str(IPP[4]["offset"]))
             params = ({"jsonrpc": "2.0", "method": "Player.Seek", "params": {"value": {"hours":hours,"minutes":minutes,"seconds":seconds ,"milliseconds":int(milliseconds)}, "playerid":1}})
             SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
+        return
+
+    def slowClient(self, IPP):
+        log('slowClient')
+        sleepSeconds = IPP[4]["lastDrift"].total_seconds()
+        log('slowClient: were going to pause for ' + str(sleepSeconds) + 's')
+        #params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":0,"playerid":1}})
+        params = ({"jsonrpc": "2.0", "method": "Player.PlayPause", "params": {"play":False,"playerid":1}})
+        SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
+        time.sleep(sleepSeconds)
+        #params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":1,"playerid":1}})
+        params = ({"jsonrpc": "2.0", "method": "Player.PlayPause", "params": {"play":True,"playerid":1}})
+        SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
+
+    def speedClient(self, IPP):
+        log('speedClient')
+        sleepSeconds = -1 * IPP[4]["lastDrift"].total_seconds() * 0.5
+        log('speedClient: were going to play 2x for ' + str(sleepSeconds) + 's')
+        params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":2,"playerid":1}})
+        SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
+        time.sleep(sleepSeconds)
+        params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":1,"playerid":1}})
+        SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
+
+    def driftClient(self, IPPlst):
+        log('driftClient ' + str(len(IPPlst)) + ' in list')
+        xbmc.executebuiltin("Notification('Multi-Room Sync,'driftClient")
+        for IPP in IPPlst:
+            if IPP[4]["lastDrift"].total_seconds() >= 0:
+                self.slowClient(IPP)
+            else:
+                self.speedClient(IPP)
         return
 
     def stopClient(self, IPPlst):
@@ -328,14 +457,13 @@ class Player(xbmc.Player):
             SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
         return True
         
-        
     def pauseClient(self, IPPlst):
         log('pauseClient')
+        #params = ({"jsonrpc":"2.0","id":1,"method":"Player.Speed","params":{"speed":0}})
         params = ({"jsonrpc":"2.0","id":1,"method":"Input.ExecuteAction","params":{"action":"pause"}})
         for IPP in IPPlst: 
             SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
         return True
-        
         
     def resumeClient(self, IPPlst):
         log('resumeClient')
@@ -343,7 +471,6 @@ class Player(xbmc.Player):
         for IPP in IPPlst: 
             SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
         return True
-        
         
     def playlistClient(self, IPPlst, file):
         log('PlaylistUPNP')
@@ -358,14 +485,12 @@ class Monitor(xbmc.Monitor):
         xbmc.Monitor.__init__(self, xbmc.Monitor())
         self.IPPlst = []
       
-      
     def onSettingsChanged(self):
         log("onSettingsChanged")
         DEBUG = REAL_SETTINGS.getSetting('enableDebug') == "true"
         POLL  = int(REAL_SETTINGS.getSetting('pollTIME'))
         maximumDrift = int(REAL_SETTINGS.getSetting('maximumDrift'))
         #self.initClients()
-        
         
     def initClients(self):
         log('initClients')
@@ -376,16 +501,18 @@ class Monitor(xbmc.Monitor):
                 {"networkLatency":datetime.timedelta(),
                 "offset":datetime.timedelta(),
                 "lastDrift":datetime.timedelta(),
-                "maximumDrift":datetime.timedelta(milliseconds=maximumDrift),
+                "maximumDrift":(maximumDrift/float(1000)), #seconds
                 "commonPath":REAL_SETTINGS.getSetting("Client%d_CommonPath"%i),
-                "syncEpochsCount":0,
-                "LostSyncEpochsCount":0,
-                "maxLostSyncEpochsCount":int(REAL_SETTINGS.getSetting("maxLostSyncEpochs")),
+                "syncIntervalsCount":0,
+                "LostSyncIntervalsCount":0,
+                "maxLostSyncIntervalsCount":int(REAL_SETTINGS.getSetting("maxLostSyncIntervals")),
                 "driftHistory":[],
-                "initialSyncAchieved":False}]
+                "initialSyncAchieved":False,
+                "networkLatencyHistory":[], 
+                "maxNetworkLatency":maxNetworkLatency,
+                "playbackStatus":0}]
                 self.IPPlst.append(IPP + [self.initClientPVR(IPP)])
         log('initClients, IPPlst = ' + str(self.IPPlst))
-        
         
     def initClientPVR(self, IPP):
         log('initClientPVR')
@@ -406,13 +533,12 @@ class Service():
  
     def chkClients(self):
         log('chkClients')
-        
+        log('chkClients START')
         #check if clients are playing the same content, ie "insync", return "outofsync" clients.
         failedLst = []
         seekLst = []
+        driftLst = []
         for IPPlst in self.Monitor.IPPlst:
-            if xbmcgui.Window(10000).getProperty("PseudoTVRunning") == "True": 
-                return []
             #find current activeplayer
             params = ({"jsonrpc":"2.0","id":1,"method":"Player.GetActivePlayers"})
             
@@ -435,23 +561,31 @@ class Service():
                 seconds=json_response2["result"]["time"]["seconds"],
                 milliseconds=json_response2["result"]["time"]["milliseconds"] )
             log("remote playtime: " + str(remote_playtime))
+            #check net latency
+            log("network latency: " + str(IPPlst[4]["networkLatency"]))
+            if IPPlst[4]['networkLatency'] > IPPlst[4] ["maxNetworkLatency"] :
+                log("networkLatency over limit")
+                continue
             # get local playback position
             local_playtime = datetime.timedelta(seconds=self.Player.getPlayerTime())
             log("local playtime: " + str(local_playtime))
-            log("network latency: " + str(IPPlst[4]["networkLatency"]))
-            diff_playtime = remote_playtime - local_playtime - IPPlst[4]["networkLatency"]
-            log("playback diff: " + str(diff_playtime) + "(allowing for network latency)")
+
+            log("playback diff: " + str((remote_playtime - local_playtime).total_seconds()) + "s (ignoring network latency)")
+            diff_playtime = remote_playtime - local_playtime
+            if adjustForNetworkLatency:
+                diff_playtime -= IPPlst[4]["networkLatency"]
+            log("playback diff: " + str(diff_playtime.total_seconds()) + "s (allowing for network latency)")
 
             log("chkClients, IPP = " + str(IPPlst[0]) + " JSON =" + json.dumps(json_response)) 
 
             if json_response is None:
                 failedLst.append(IPPlst)
-                log("chkClients, json_response is None")
+                log("chkClients END, json_response is None")
                 continue                
             
             if not json_response or 'result' not in json_response or 'item' not in json_response['result']:
                 failedLst.append(IPPlst)
-                log("chkClients, json_response doesnt contain label")
+                log("chkClients END, json_response doesnt contain label")
                 continue
 
             #there is a response
@@ -463,6 +597,7 @@ class Service():
                 log("chkClients, localFile = " + localFile)    
                 if clientFile != self.Player.getPlayerFile():
                     failedLst.append(IPPlst)
+                    log('chkClients END incorrect file')
                     continue
             else:
                 #not all items contain a file, ex. pvr, playlists. so check title.
@@ -472,74 +607,95 @@ class Service():
                 log("chkClients, localLabel = " + localLabel) 
                 if clientLabel != self.Player.getPlayerLabel():
                     failedLst.append(IPPlst)
+                    log('chkClients END incorrect label')
                     continue
 
             # If we've got this far, the client is playing the right media
 
-            if not IPPlst[4]['initialSyncAchieved']:
-                if abs(diff_playtime) > IPPlst[4]['maximumDrift']:
-                #if abs(diff_playtime) > datetime.timedelta(microseconds=(IPPlst[4]['maximumDrift'].microseconds*0.5)):
-                    log("chkClients: Sync: IPP=" + IPPlst[0] + " No inital sync yet")
-                    IPPlst[4]['lastDrift'] = diff_playtime
-                    offset = IPPlst[4]['offset']
-                    newOffset = offset - diff_playtime
-                    IPPlst[4]['offset'] = newOffset
-                    seekLst.append(IPPlst)
-                else:
-                    log("chkClients: Sync: IPP=" + IPPlst[0] + " Inital sync")
-                    # in sync the first time
-                    IPPlst[4]['initialSyncAchieved'] = True
-                    IPPlst[4]['syncEpochsCount'] = 1
-                    IPPlst[4]['driftHistory'] = []
-                    IPPlst[4]['driftHistory'].append(diff_playtime)
-                continue
+            # if IPPlst[4]['initialSyncAchieved']:
+            #     if abs(diff_playtime) > IPPlst[4]['maximumDrift']:
+            #     #if abs(diff_playtime) > datetime.timedelta(microseconds=(IPPlst[4]['maximumDrift'].microseconds*0.5)):
+            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " No inital sync yet")
+            #         IPPlst[4]['lastDrift'] = diff_playtime
+            #         offset = IPPlst[4]['offset']
+            #         offset -= diff_playtime
+            #         IPPlst[4]['offset'] = offset
+            #         seekLst.append(IPPlst)
+            #     else:
+            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " Inital sync")
+            #         # in sync the first time
+            #         IPPlst[4]['initialSyncAchieved'] = True
+            #         IPPlst[4]['syncIntervalsCount'] = 1
+            #         IPPlst[4]['driftHistory'] = []
+            #         IPPlst[4]['driftHistory'].append(diff_playtime)
+            #     continue
             
-            # If we've got this far, we at least started playing in sync
+            IPPlst[4]['lastDrift'] = diff_playtime
+            offset = IPPlst[4]['offset']
+            offset -= diff_playtime
+            IPPlst[4]['offset'] = offset
+            #IPPlst[4]['offset'] = IPPlst[4]['lastDrift']
+            IPPlst[4]['driftHistory'].append(diff_playtime)
 
-            if abs(diff_playtime) <= IPPlst[4]['maximumDrift']:
-                log("chkClients: Sync: IPP=" + IPPlst[0] + " OK for " + 
-                    str(IPPlst[4]['syncEpochsCount']+1))
-                IPPlst[4]['syncEpochsCount'] += 1
-                IPPlst[4]['driftHistory'].append(diff_playtime)
-                IPPlst[4]['LostSyncEpochsCount'] = 0
-            else:
-                if IPPlst[4]['LostSyncEpochsCount'] < (IPPlst[4]['maxLostSyncEpochsCount']-1):
-                    log("chkClients: Sync: IPP=" + IPPlst[0] + " Not in sync")
-                    IPPlst[4]['LostSyncEpochsCount'] += 1
-                    IPPlst[4]['driftHistory'].append(diff_playtime)
-                    continue
-                
-                historyString = ""
-                for epoch in IPPlst[4]['driftHistory']:
-                    historyString += ", " + str(epoch.total_seconds())
-                historyString += ", [" + str(diff_playtime.total_seconds()) + "]"
-                log("chkClients: Sync: IPP=" + IPPlst[0] + " Limit exceeded, history = " + historyString)
-                #IPPlst[4]['driftHistory'] = []
-
-                # we'll re sync
-                IPPlstlst = []
-                IPPlstlst.append(IPPlst)
-                clearSyncHistory(IPPlstlst)
-
-                #IPPlst[4]['offset'] += 
+            IPPlst = decidePlaybackStatus(IPPlst)
+            log('chkClients: playbackStatus = ' + str(IPPlst[4]["playbackStatus"]))
+            if IPPlst[4]['playbackStatus'] == 3:
+                driftLst.append(IPPlst)
+            elif IPPlst[4]['playbackStatus'] == 2:
                 seekLst.append(IPPlst)
-                #IPPlst[4]['syncEpochsCount'] = 0
+
+            # # If we've got this far, we at least started playing in sync
+            # diff_playtime = IPPlist[4]['driftHistory'][-1]
+            # if abs(diff_playtime) <= IPPlst[4]['maximumDrift']:
+            #     log("chkClients: Sync: IPP=" + IPPlst[0] + " OK for " + 
+            #         str(IPPlst[4]['syncIntervalsCount']+1))
+            #     IPPlst[4]['syncIntervalsCount'] += 1
+            #     IPPlst[4]['driftHistory'].append(diff_playtime)
+            #     IPPlst[4]['LostSyncIntervalsCount'] = 0
+            # else:
+            #     if IPPlst[4]['LostSyncIntervalsCount'] < (IPPlst[4]['maxLostSyncIntervalsCount']-1):
+            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " Not in sync")
+            #         IPPlst[4]['LostSyncIntervalsCount'] += 1
+            #         IPPlst[4]['driftHistory'].append(diff_playtime)
+            #         continue
+                
+            #     historyString = ""
+            #     for epoch in IPPlst[4]['driftHistory']:
+            #         historyString += ", " + str(epoch.total_seconds())
+            #     historyString += ", [" + str(diff_playtime.total_seconds()) + "]"
+            #     log("chkClients: Sync: IPP=" + IPPlst[0] + " Limit exceeded, history = " + historyString)
+            #     #IPPlst[4]['driftHistory'] = []
+
+            #     if IPPlst[4]['LostSyncIntervalsCount'] == IPPlst[4]['maxLostSyncIntervalsCount']:
+            #         #first chance
+            #         log("chkClients: First chance to use last good offset")
+            #         seekLst.append(IPPlst) 
+            #         continue
+
+            #     # we'll re sync
+            #     IPPlstlst = []
+            #     IPPlstlst.append(IPPlst)
+            #     clearSyncHistory(IPPlstlst)
+
+            #     #IPPlst[4]['offset'] += 
+            #     seekLst.append(IPPlst)
+            #     #IPPlst[4]['syncIntervalsCount'] = 0
 
 
-
-        return failedLst, seekLst
-        
+        log('chkClients END')
+        return failedLst, seekLst, driftLst
 
     def start(self):
         self.Monitor.initClients()
         while not self.Monitor.abortRequested():
             if self.Player.isPlayingVideo() == True and len(self.Monitor.IPPlst) > 0:
-                if xbmcgui.Window(10000).getProperty("PseudoTVRunning") == "True": 
-                    self.Monitor.waitForAbort(POLL)
-                    continue 
-                playLst, seekLst = self.chkClients()
+                #if xbmcgui.Window(10000).getProperty("PseudoTVRunning") == "True": 
+                    #self.Monitor.waitForAbort(POLL)
+                    #continue 
+                playLst, seekLst, driftLst = self.chkClients()
                 self.Player.playClient(playLst)
                 self.Player.seekClient(seekLst)
+                self.Player.driftClient(driftLst)
             if self.Monitor.waitForAbort(POLL):
                 break
         self.Player.stopClient(self.Monitor.IPPlst)

@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <setting id="enableDebug" type="bool" label="32001" default="false" />
-    <setting id="pollTIME" label="32002" type="slider" default="60" range="1,1,60" option="int" />
-    <setting id="maximumDrift" label="32009" type="slider" default="50" range="1,10,500" option="int" />
-    <setting id="maxLostSyncEpochs" label="32012" type="slider" default="2" range="0,1,5" option="int" />
+    <setting id="pollTIME" label="32002" type="slider" default="10" range="1,1,30" option="int" />
+    <setting id="maximumDrift" label="32009" type="slider" default="50" range="10,10,500" option="int" />
+    <setting id="maxNetworkLatency" label="32013" type="slider" default="250" range="10,10,500" option="int" />
+    <setting id="maxLostSyncIntervals" label="32012" type="slider" default="2" range="0,1,10" option="int" />
     <setting id="host_CommonPath" label="32010" type="text" default = "" />
     <setting type="sep" />
     <setting id="Client1" type="bool" label="32006" default="false" />

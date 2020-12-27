@@ -63,3 +63,7 @@ msgstr ""
 msgctxt "#32012"
 msgid "Resync after x out-of-sync checks"
 msgstr ""
+
+msgctxt "#32013"
+msgid "Maximum network latency (ms)"
+msgstr ""
