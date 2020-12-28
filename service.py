@@ -33,7 +33,7 @@ maxNetworkLatency = datetime.timedelta(milliseconds=
     int(REAL_SETTINGS.getSetting('maxNetworkLatency')))
 networkLatencyHistoryCount = 20
 adjustForNetworkLatency = False
-seekOrDriftLimit = datetime.timedelta(milliseconds=3000) #milliseconds
+seekOrDriftLimit = datetime.timedelta(milliseconds=4000) #milliseconds
 playbackStatusMessages = {
     0 : "Cannot communicate with client",
     1 : "The client is not playing the correct media",
@@ -169,6 +169,7 @@ def clearSyncHistory(IPPlst):
         IPP[4]['driftHistory'] = []
         IPP[4]['initialSyncAchieved'] = 0
         IPP[4]['LostSyncIntervalsCount'] = 0
+    return IPPlst
 
 def decidePlaybackStatus(IPP):
     log('decidePlaybackStatus')
@@ -182,27 +183,33 @@ def decidePlaybackStatus(IPP):
         playbackStatus = 5
         IPP[4]['syncIntervalsCount'] += 1
         IPP[4]['LostSyncIntervalsCount'] = 0
-    elif abs(diff_playtime) <= seekOrDriftLimit:
-        if IPP[4]['LostSyncIntervalsCount'] < (IPP[4]['maxLostSyncIntervalsCount']-1):
+    elif abs(diff_playtime.total_seconds()) <= abs(seekOrDriftLimit.total_seconds()):
+        if (IPP[4]['LostSyncIntervalsCount'] < (IPP[4]['maxLostSyncIntervalsCount']-1)) and (IPP[4]['playbackStatus'] >=4):
             #log('decidePlaybackStatus: diff_playtime =' + str(diff_playtime.total_seconds()) +'s, seekOrDriftLimit =' + str(seekOrDriftLimit))
             playbackStatus = 4
             IPP[4]['LostSyncIntervalsCount'] += 1
         else:
             playbackStatus = 3
+            IPP[4]['syncIntervalsCount'] += 0
     else:
         playbackStatus = 2
+        IPP[4]['syncIntervalsCount'] += 0
 
     # Playback status messages
     if playbackStatus == 5:
-        log("chkClients: Sync: IPP=" + IPP[0] + " OK for " + 
-            str(IPP[4]['syncIntervalsCount']+1))
+        log("decidePlaybackStatus: Sync: IPP=" + IPP[0] + " OK for " + 
+            str(IPP[4]['syncIntervalsCount']))
+    elif playbackStatus == 4:
+        log("decidePLaybackStatus: Sync: IPP=" + IPP[0] + " Starting to drift for " + str(IPP[4]["LostSyncIntervalsCount"]))
     elif playbackStatus == 3:
-        log("chkClients: Sync: IPP=" + IPP[0] + " Not in sync")
+        log("decidePlaybackStatus: Sync: IPP=" + IPP[0] + " Correct now using drift")
     elif playbackStatus == 2:
-        log("chkClients: Sync: IPP=" + IPP[0] + " Limit exceeded, history = " + 
-            driftHistoryToString(IPP[4]['driftHistory']))
+        log("decidePlaybackStatus: Sync: IPP=" + IPP[0] + " Correct now using seek")
     #log('decidePlaybackStatus playbackStatus = ' + str(playbackStatus))
+    log("decidePlaybackStatus: Sync: IPP=" + IPP[0] + ", history = " + 
+        driftHistoryToString(IPP[4]['driftHistory']))
     IPP[4]['playbackStatus'] = playbackStatus
+
     return IPP
 
     # Actions
@@ -424,19 +431,25 @@ class Player(xbmc.Player):
         log('slowClient: were going to pause for ' + str(sleepSeconds) + 's')
         #params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":0,"playerid":1}})
         params = ({"jsonrpc": "2.0", "method": "Player.PlayPause", "params": {"play":False,"playerid":1}})
+        time_before = time.time()
         SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
-        time.sleep(sleepSeconds)
+        time_after = time.time() 
+        time_taken = round(time_after-time_before,3)
+        time.sleep(max((sleepSeconds - time_taken),0))
         #params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":1,"playerid":1}})
         params = ({"jsonrpc": "2.0", "method": "Player.PlayPause", "params": {"play":True,"playerid":1}})
         SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
 
     def speedClient(self, IPP):
         log('speedClient')
-        sleepSeconds = -1 * IPP[4]["lastDrift"].total_seconds() * 0.5
+        sleepSeconds = -1 * IPP[4]["lastDrift"].total_seconds()
         log('speedClient: were going to play 2x for ' + str(sleepSeconds) + 's')
         params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":2,"playerid":1}})
+        time_before = time.time()
         SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
-        time.sleep(sleepSeconds)
+        time_after = time.time() 
+        time_taken = max(round(time_after-time_before,3),0)
+        time.sleep(max((sleepSeconds - time_taken),0))
         params = ({"jsonrpc": "2.0", "method": "Player.SetSpeed", "params": {"speed":1,"playerid":1}})
         SendRemote(IPP[0], IPP[1], IPP[3], params, IPP[4])
 
