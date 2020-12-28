@@ -36,3 +36,9 @@ Kodi settings > Services > Control
 
 * Cross-platform - tested between Windows and Android devices.
 * 
+
+## TODO
+
+* Adaptive high-latency management
+
+* Improve seek accuracy

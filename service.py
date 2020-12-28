@@ -26,11 +26,14 @@ ADDON_PATH = REAL_SETTINGS.getAddonInfo('path').decode('utf-8')
 ADDON_VERSION = REAL_SETTINGS.getAddonInfo('version')
 ICON = REAL_SETTINGS.getAddonInfo('icon')
 DEBUG = REAL_SETTINGS.getSetting('enableDebug') == "true"
+
 POLL = int(REAL_SETTINGS.getSetting('pollTIME'))
 maximumDrift = int(REAL_SETTINGS.getSetting('maximumDrift'))
 hostCommonPath = REAL_SETTINGS.getSetting('host_CommonPath')
 maxNetworkLatency = datetime.timedelta(milliseconds=
     int(REAL_SETTINGS.getSetting('maxNetworkLatency')))
+# If editing these, also edit onSettingsChange
+
 networkLatencyHistoryCount = 20
 adjustForNetworkLatency = False
 seekOrDriftLimit = datetime.timedelta(milliseconds=4000) #milliseconds
@@ -167,7 +170,6 @@ def clearSyncHistory(IPPlst):
     for IPP in IPPlst:
         IPP[4]['syncIntervalsCount'] = 0
         IPP[4]['driftHistory'] = []
-        IPP[4]['initialSyncAchieved'] = 0
         IPP[4]['LostSyncIntervalsCount'] = 0
     return IPPlst
 
@@ -374,7 +376,6 @@ class Player(xbmc.Player):
     def seekClient(self, IPPlst):
         #log('seekClient')
         log('seekClient ' + str(len(IPPlst)) + ' in list')
-        xbmc.executebuiltin("Notification('Multi-Room Sync,'seekClient")
         for IPP in IPPlst:
             seekTime = datetime.timedelta(seconds=self.getPlayerTime())
             seekTime += IPP[4]["offset"] #add user offset
@@ -424,7 +425,6 @@ class Player(xbmc.Player):
 
     def driftClient(self, IPPlst):
         log('driftClient ' + str(len(IPPlst)) + ' in list')
-        xbmc.executebuiltin("Notification('Multi-Room Sync,'driftClient")
         for IPP in IPPlst:
             if IPP[4]["lastDrift"].total_seconds() >= 0:
                 self.slowClient(IPP)
@@ -470,14 +470,15 @@ class Monitor(xbmc.Monitor):
     def onSettingsChanged(self):
         log("onSettingsChanged")
         DEBUG = REAL_SETTINGS.getSetting('enableDebug') == "true"
-        POLL  = int(REAL_SETTINGS.getSetting('pollTIME'))
-        maximumDrift = int(REAL_SETTINGS.getSetting('maximumDrift'))
-        #self.initClients()
+        hostCommonPath = REAL_SETTINGS.getSetting('host_CommonPath')
+        maxNetworkLatency = datetime.timedelta(milliseconds=
+            int(REAL_SETTINGS.getSetting('maxNetworkLatency')))
+        self.initClients()
         
     def initClients(self):
         log('initClients')
         self.IPPlst = []
-        for i in range(1,6):
+        for i in range(1,5):
             if REAL_SETTINGS.getSetting("Client%d"%i) == "true":
                 IPP = [REAL_SETTINGS.getSetting("Client%d_IPP"%i),REAL_SETTINGS.getSetting("Client%d_UPW"%i),0,i,
                 {"networkLatency":datetime.timedelta(),
@@ -489,7 +490,6 @@ class Monitor(xbmc.Monitor):
                 "LostSyncIntervalsCount":0,
                 "maxLostSyncIntervalsCount":int(REAL_SETTINGS.getSetting("maxLostSyncIntervals")),
                 "driftHistory":[],
-                "initialSyncAchieved":False,
                 "networkLatencyHistory":[], 
                 "maxNetworkLatency":maxNetworkLatency,
                 "playbackStatus":0}]

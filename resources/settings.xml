@@ -1,30 +1,35 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
-    <setting id="enableDebug" type="bool" label="32001" default="false" />
-    <setting id="pollTIME" label="32002" type="slider" default="10" range="1,1,30" option="int" />
-    <setting id="maximumDrift" label="32009" type="slider" default="50" range="10,10,500" option="int" />
+    <setting id="pollTIME" label="32002" type="slider" default="5" range="1,1,30" option="int" />
+    <setting id="maximumDrift" label="32009" type="slider" default="70" range="10,10,500" option="int" />
     <setting id="maxNetworkLatency" label="32013" type="slider" default="250" range="10,10,500" option="int" />
-    <setting id="maxLostSyncIntervals" label="32012" type="slider" default="2" range="0,1,10" option="int" />
+    <setting id="maxLostSyncIntervals" label="32012" type="slider" default="4" range="0,1,10" option="int" />
     <setting id="host_CommonPath" label="32010" type="text" default = "" />
     <setting type="sep" />
     <setting id="Client1" type="bool" label="32006" default="false" />
     <setting id="Client1_IPP" subsetting="true" type="text"  label="32004" visible="eq(-1,true)" default="0.0.0.0:8080" />
     <setting id="Client1_UPW" subsetting="true" type="text"   label="32005" option="" visible="eq(-2,true)" default="kodi:kodi" />
     <setting id="Client1_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
-    <setting id="Client2" type="bool"   label="32006" default="false" visible="eq(-4,true)"/>
+    <setting type="sep" />
+    <setting id="Client2" type="bool" label="32014" default="false" />
     <setting id="Client2_IPP" subsetting="true" type="text"  label="Enter IP:Port" visible="eq(-1,true)" default="0.0.0.0:8080" />
     <setting id="Client2_UPW" subsetting="true" type="text"   label="32005" option="" visible="eq(-2,true)" default="kodi:kodi" />
     <setting id="Client2_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
-    <setting id="Client3" type="bool"   label="32006" default="false" visible="eq(-4,true)"/>
+    <setting type="sep" />
+    <setting id="Client3" type="bool" label="32015" default="false" />
     <setting id="Client3_IPP" subsetting="true" type="text"  label="32004" visible="eq(-1,true)" default="0.0.0.0:8080" />
     <setting id="Client3_UPW" subsetting="true" type="text"   label="32005" option="" visible="eq(-2,true)" default="kodi:kodi" />
-    <setting id="Client4_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
-    <setting id="Client4" type="bool"   label="32006" default="false" visible="eq(-4,true)"/>
+    <setting id="Client3_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
+    <setting type="sep" />
+    <setting id="Client4" type="bool" label="32016" default="false" />
     <setting id="Client4_IPP" subsetting="true" type="text"  label="32004" visible="eq(-1,true)" default="0.0.0.0:8080" />
     <setting id="Client4_UPW" subsetting="true" type="text"   label="32005" option="" visible="eq(-2,true)" default="kodi:kodi" />
     <setting id="Client4_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
-    <setting id="Client5" type="bool"   label="32006" default="false" visible="eq(-4,true)"/>
+    <setting type="sep" />
+    <setting id="Client5" type="bool" label="32017" default="false" />
     <setting id="Client5_IPP" subsetting="true" type="text"  label="32004" visible="eq(-1,true)" default="0.0.0.0:8080" />
     <setting id="Client5_UPW" subsetting="true" type="text"   label="32005" option="" visible="eq(-2,true)" default="kodi:kodi" />
     <setting id="Client5_CommonPath" subsetting="true" label="32011" type="text" visible="eq(-3,true)" default = "" />
+    <setting type="sep" />
+    <setting id="enableDebug" type="bool" label="32001" default="false" />
 </settings>

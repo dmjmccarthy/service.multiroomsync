@@ -37,7 +37,7 @@ msgid "Enter Username:Password"
 msgstr ""
 
 msgctxt "#32006"
-msgid "Enable Client"
+msgid "Enable Client 1"
 msgstr ""
 
 msgctxt "#32007"
@@ -66,4 +66,20 @@ msgstr ""
 
 msgctxt "#32013"
 msgid "Maximum network latency (ms)"
+msgstr ""
+
+msgctxt "#32014"
+msgid "Enable Client 2"
+msgstr ""
+
+msgctxt "#32015"
+msgid "Enable Client 3"
+msgstr ""
+
+msgctxt "#32016"
+msgid "Enable Client 4"
+msgstr ""
+
+msgctxt "#32017"
+msgid "Enable Client 5"
 msgstr ""
