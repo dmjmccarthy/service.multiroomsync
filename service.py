@@ -212,37 +212,6 @@ def decidePlaybackStatus(IPP):
 
     return IPP
 
-    # Actions
-    #driftLst = []
-    #seekLst = []
-    # if playbackStatus == 5:
-    #     return IPP
-    # if playbackStatus == 4:
-    #     return IPP
-    # if playbackStatus == 3:
-    #     return IPP
-    #     #driftLst.append(IPP)
-    # if playbackStatus == 2:
-    #         # if IPP[4]['LostSyncIntervalsCount'] == IPP[4]['maxLostSyncIntervalsCount']:
-    #         #     #first chance
-    #         #     log("chkClients: First chance to use last good offset")
-    #         #     seekLst.append(IPP) 
-    #         #     continue
-    #     #seekLst.append(IPP)
-    #     return IPP
-    # if playbackStatus == 1:
-    #     return IPP
-
-        # we'll re sync
-        # IPPlst = []
-        # IPPlst.append(IPP)
-        # clearSyncHistory(IPPlst)
-
-        # #IPPlst[4]['offset'] += 
-        # # seekLst.append(IPPlst)
-        # #IPPlst[4]['syncIntervalsCount'] = 0
-
-  
 class Player(xbmc.Player):
     def __init__(self):
         xbmc.Player.__init__(self, xbmc.Player())
@@ -622,26 +591,6 @@ class Service():
                     failedLst.append(IPPlst)
                     log('chkClients END incorrect label')
                     continue
-
-            # If we've got this far, the client is playing the right media
-
-            # if IPPlst[4]['initialSyncAchieved']:
-            #     if abs(diff_playtime) > IPPlst[4]['maximumDrift']:
-            #     #if abs(diff_playtime) > datetime.timedelta(microseconds=(IPPlst[4]['maximumDrift'].microseconds*0.5)):
-            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " No inital sync yet")
-            #         IPPlst[4]['lastDrift'] = diff_playtime
-            #         offset = IPPlst[4]['offset']
-            #         offset -= diff_playtime
-            #         IPPlst[4]['offset'] = offset
-            #         seekLst.append(IPPlst)
-            #     else:
-            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " Inital sync")
-            #         # in sync the first time
-            #         IPPlst[4]['initialSyncAchieved'] = True
-            #         IPPlst[4]['syncIntervalsCount'] = 1
-            #         IPPlst[4]['driftHistory'] = []
-            #         IPPlst[4]['driftHistory'].append(diff_playtime)
-            #     continue
             
             IPPlst[4]['lastDrift'] = diff_playtime
             offset = IPPlst[4]['offset']
@@ -656,44 +605,6 @@ class Service():
                 driftLst.append(IPPlst)
             elif IPPlst[4]['playbackStatus'] == 2:
                 seekLst.append(IPPlst)
-
-            # # If we've got this far, we at least started playing in sync
-            # diff_playtime = IPPlist[4]['driftHistory'][-1]
-            # if abs(diff_playtime) <= IPPlst[4]['maximumDrift']:
-            #     log("chkClients: Sync: IPP=" + IPPlst[0] + " OK for " + 
-            #         str(IPPlst[4]['syncIntervalsCount']+1))
-            #     IPPlst[4]['syncIntervalsCount'] += 1
-            #     IPPlst[4]['driftHistory'].append(diff_playtime)
-            #     IPPlst[4]['LostSyncIntervalsCount'] = 0
-            # else:
-            #     if IPPlst[4]['LostSyncIntervalsCount'] < (IPPlst[4]['maxLostSyncIntervalsCount']-1):
-            #         log("chkClients: Sync: IPP=" + IPPlst[0] + " Not in sync")
-            #         IPPlst[4]['LostSyncIntervalsCount'] += 1
-            #         IPPlst[4]['driftHistory'].append(diff_playtime)
-            #         continue
-                
-            #     historyString = ""
-            #     for epoch in IPPlst[4]['driftHistory']:
-            #         historyString += ", " + str(epoch.total_seconds())
-            #     historyString += ", [" + str(diff_playtime.total_seconds()) + "]"
-            #     log("chkClients: Sync: IPP=" + IPPlst[0] + " Limit exceeded, history = " + historyString)
-            #     #IPPlst[4]['driftHistory'] = []
-
-            #     if IPPlst[4]['LostSyncIntervalsCount'] == IPPlst[4]['maxLostSyncIntervalsCount']:
-            #         #first chance
-            #         log("chkClients: First chance to use last good offset")
-            #         seekLst.append(IPPlst) 
-            #         continue
-
-            #     # we'll re sync
-            #     IPPlstlst = []
-            #     IPPlstlst.append(IPPlst)
-            #     clearSyncHistory(IPPlstlst)
-
-            #     #IPPlst[4]['offset'] += 
-            #     seekLst.append(IPPlst)
-            #     #IPPlst[4]['syncIntervalsCount'] = 0
-
 
         log('chkClients END')
         return failedLst, seekLst, driftLst
