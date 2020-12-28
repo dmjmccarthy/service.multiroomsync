@@ -37,6 +37,10 @@ maxNetworkLatency = datetime.timedelta(milliseconds=
 networkLatencyHistoryCount = 20
 adjustForNetworkLatency = False
 seekOrDriftLimit = datetime.timedelta(milliseconds=4000) #milliseconds
+skipChecksWhenInSync = 5
+checksBeingSkipped = 0
+httpMaximumDrift = 5000 #milliseconds
+httpMediaPlaying = False
 playbackStatusMessages = {
     0 : "Cannot communicate with client",
     1 : "The client is not playing the correct media",
@@ -177,11 +181,12 @@ def decidePlaybackStatus(IPP):
     log('decidePlaybackStatus')
     #Playback status logic
     diff_playtime = IPP[4]['lastDrift']
+    maxDrift = IPP[4]['maximumDrift']
 
-    log('decidePlaybackStatus: maximumDrift = ' + str(IPP[4]['maximumDrift']) + 's')
+    log('decidePlaybackStatus: maximumDrift = ' + str(maxDrift) + 's')
     log('decidePlaybackStatus: diff_playtime = ' + str(diff_playtime.total_seconds()) + 's')
 
-    if abs(diff_playtime.total_seconds()) <= IPP[4]['maximumDrift']:
+    if abs(diff_playtime.total_seconds()) <= maxDrift:
         playbackStatus = 5
         IPP[4]['syncIntervalsCount'] += 1
         IPP[4]['LostSyncIntervalsCount'] = 0
@@ -332,6 +337,7 @@ class Player(xbmc.Player):
         return True
 
     def playClient(self, IPPlst):
+        global httpMediaPlaying
         #log('playClient')
         #log('playClient : no in list = ' + str(len(IPPlst))) 
         #xbmc.executebuiltin("Notification('Media Mirror','playClient " + str(len(IPPlst)) + " devices')")
@@ -343,6 +349,11 @@ class Player(xbmc.Player):
         else: thumb = None
         #print(self.playType, self.playLabel, self.playFile, self.playThumb)
         localPlayFile = self.getPlayerFile()
+        if "http" in localPlayFile[0:4]:
+            httpMediaPlaying = True
+        else:
+            httpMediaPlaying = False
+
         for IPP in IPPlst:
             playFile = localPlayFile
             if hostCommonPath <> "" and IPP[4]["commonPath"] <> "":
@@ -485,6 +496,7 @@ class Monitor(xbmc.Monitor):
                 "offset":datetime.timedelta(),
                 "lastDrift":datetime.timedelta(),
                 "maximumDrift":(maximumDrift/float(1000)), #seconds
+                "maximumHttpDrift":(httpMaximumDrift/float(1000)), #seconds
                 "commonPath":REAL_SETTINGS.getSetting("Client%d_CommonPath"%i),
                 "syncIntervalsCount":0,
                 "LostSyncIntervalsCount":0,
@@ -506,6 +518,8 @@ class Monitor(xbmc.Monitor):
         
 
 class Service():
+    global checksBeingSkipped
+
     def __init__(self):
         self.Player = Player()
         self.Monitor = Monitor()
@@ -516,11 +530,14 @@ class Service():
     def chkClients(self):
         log('chkClients')
         log('chkClients START')
-        #check if clients are playing the same content, ie "insync", return "outofsync" clients.
+        
         failedLst = []
         seekLst = []
         driftLst = []
+
+        #check if clients are playing the same content, ie "insync", return "outofsync" clients.
         for IPPlst in self.Monitor.IPPlst:
+
             #find current activeplayer
             params = ({"jsonrpc":"2.0","id":1,"method":"Player.GetActivePlayers"})
             
@@ -571,7 +588,6 @@ class Service():
                 continue
 
             #there is a response
-                
             if 'file' in json_response['result']['item']:
                 clientFile  = json_response['result']['item']['file']
                 log("chkClients, clientFile = " + clientFile) 
@@ -610,16 +626,27 @@ class Service():
         return failedLst, seekLst, driftLst
 
     def start(self):
+        global checksBeingSkipped
         self.Monitor.initClients()
         while not self.Monitor.abortRequested():
             if self.Player.isPlayingVideo() == True and len(self.Monitor.IPPlst) > 0:
                 #if xbmcgui.Window(10000).getProperty("PseudoTVRunning") == "True": 
                     #self.Monitor.waitForAbort(POLL)
                     #continue 
-                playLst, seekLst, driftLst = self.chkClients()
-                self.Player.playClient(playLst)
-                self.Player.seekClient(seekLst)
-                self.Player.driftClient(driftLst)
+                if httpMediaPlaying == True:
+                    log('start: httpMediaPlaying = True')
+                elif checksBeingSkipped > 0:
+                    log('start: skipping this check where all clients are in sync')
+                    log('start: checksBeingSkipper = ' + str(checksBeingSkipped))
+                    checksBeingSkipped =- 1
+                else:
+                    playLst, seekLst, driftLst = self.chkClients()
+                    self.Player.playClient(playLst)
+                    self.Player.seekClient(seekLst)
+                    self.Player.driftClient(driftLst)
+                    if len(playLst) + len(seekLst) + len(driftLst) == 0:
+                        checksBeingSkipped = skipChecksWhenInSync
+                        log('start: checksBeingSkipper = ' + str(checksBeingSkipped))
             if self.Monitor.waitForAbort(POLL):
                 break
         self.Player.stopClient(self.Monitor.IPPlst)

@@ -8,9 +8,9 @@
     <extension point="xbmc.service" library="service.py" start="startup"/>
     <extension point="xbmc.addon.metadata">
         <summary lang="en_GB">Allows multiple Kodi instances on the same network to simultaneously playback the same video</summary>
-        <description lang="en_GB">One Kodi instance must be designated the master instance from with playback is controlled by the user, which the add-on will mirror on the *slave* instances.
+        <description lang="en_GB">One Kodi instance must be designated the master instance from with playback is controlled by the user. The add-on will mirror on the *slave* instances.
 
-The add-on will monitor the playback on the remote instance and correct playback to match this instance.
+The add-on will monitor the playback on the remote devices and correct playback to match this device.
         
 This add-on does not stream video or audio between Kodi instances. It is assumed that the media file is available to each system seperatly (eg. in the file system)
         
